@@ -1,6 +1,7 @@
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
-    @location(0) pointCoord: vec2<f32>,
+    @location(0) texCoord: vec2<f32>,
+    @location(1) center: vec2<f32>,
 }
 
 struct Uniforms {
@@ -27,7 +28,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var vertex = verticesSrc[index];
 
     // Move the point down
-    vertex.position.y -= 0.01;
+    vertex.position.y -= 0.1;
 
     // Loop back to bottom if outside the window
     if (vertex.position.y < 0.0) {
@@ -40,30 +41,56 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 @vertex
-fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-    let vertex = verticesSrc[vertexIndex];
-    var output: VertexOutput;
-    output.position = vec4<f32>(vertex.position / uniforms.screenSize*2.0-1.0, 0.0, 1.0);
-    output.pointCoord = vertex.position;
+fn vertexMain(
+    @builtin(vertex_index) vertexIndex: u32,
+    @builtin(instance_index) instanceIndex: u32
+) -> VertexOutput {
+    let cornerIndex = vertexIndex % 6u;
     
-    // Set the point size directly
-    let pointSize = uniforms.pointSize;
+    let particle = verticesSrc[instanceIndex];
+    let center = particle.position;
+    
+    let cornerOffsets = array<vec2<f32>, 6>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(-1.0, 1.0)
+    );
+    
+    let texCoords = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(1.0, 0.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(0.0, 1.0)
+    );
+    
+    let offset = cornerOffsets[cornerIndex] * uniforms.pointSize;
+    let worldPos = center + offset;
+    let ndcPos = (worldPos / uniforms.screenSize) * 2.0 - 1.0;
+    
+    var output: VertexOutput;
+    output.position = vec4<f32>(ndcPos, 0.0, 1.0);
+    output.texCoord = texCoords[cornerIndex];
+    output.center = center;
     
     return output;
 }
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    // let center = vec2<f32>(0.5, 0.5);
-    // let coord = input.pointCoord / uniforms.pointSize;
-    // let dist = distance(center, coord);
+    let dist = distance(input.texCoord, vec2<f32>(0.5, 0.5));
     
-    // if (dist > 10) {
-    //     discard;
-    // }
+    if (dist > 0.5) {
+        discard;
+    }
     
-    // // Smooth circle edge
-    let alpha = 1.0;// 1.0 - smoothstep(0.45, 0.5, dist);
+    // Smooth circle edge
+
+    let alpha = 1.0 - smoothstep(0, 0.5, dist);
     
     return vec4<f32>(1.0, 0.0, 0.0, alpha); // Red circle
 }

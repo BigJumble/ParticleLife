@@ -1,3 +1,5 @@
+import { Renderer } from "./renderer.js";
+
 export enum PlayerAction {
     Up = "KeyW",
     Down = "KeyS",
@@ -48,7 +50,7 @@ export class Actions {
 
     static resize()
     {
-
+        Renderer.resize();
     }
 
     static #invertGA() {

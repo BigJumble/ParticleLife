@@ -17,8 +17,19 @@ body {
     overflow: hidden;
 }
 
-canvas{
-    image-rendering: pixelated;
+#gameCanvas{
+    image-rendering: auto;
     /* width: 100vw; */
     height: 100vh;
+}
+
+#backgroundCanvas{
+    display: grid;
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgb(0, 0, 0);
 }

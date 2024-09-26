@@ -1,3 +1,4 @@
+import { Renderer } from "./renderer.js";
 export var PlayerAction;
 (function (PlayerAction) {
     PlayerAction["Up"] = "KeyW";
@@ -42,6 +43,7 @@ export class Actions {
         this.#invertGA();
     }
     static resize() {
+        Renderer.resize();
     }
     static #invertGA() {
         var ret = {};
