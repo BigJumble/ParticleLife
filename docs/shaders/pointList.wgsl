@@ -28,7 +28,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var vertex = verticesSrc[index];
 
     // Move the point down
-    vertex.position.y -= f32(index)%4.0+3.0;
+    vertex.position.y -= (f32(index)%4.0+3.0)*0.2;
 
     // Loop back to bottom if outside the window
     if (vertex.position.y < 0.0) {
