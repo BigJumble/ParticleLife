@@ -18,7 +18,7 @@ body {
 }
 
 #gameCanvas{
-    image-rendering: auto;
+    image-rendering: pixelated;
     /* width: 100vw; */
     height: 100vh;
 }
