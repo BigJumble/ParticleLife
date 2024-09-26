@@ -28,7 +28,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var vertex = verticesSrc[index];
 
     // Move the point down
-    vertex.position.y -= 0.01;
+    vertex.position.y -= f32(index)%4.0+3.0;
 
     // Loop back to bottom if outside the window
     if (vertex.position.y < 0.0) {
@@ -84,13 +84,13 @@ fn vertexMain(
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let dist = distance(input.texCoord, vec2<f32>(0.5, 0.5));
     
-    if (dist > 0.45) {
+    if (dist > 0.5) {
         discard;
     }
     
     // Smooth circle edge
 
-    let alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+    let alpha = 1.0 - smoothstep(0.2, 0.5, dist);
     
-    return vec4<f32>(0.0, 0.0, 0.0, 1); // Red circle
+    return vec4<f32>(0.0, 0.0, 0.0, alpha); // Red circle
 }

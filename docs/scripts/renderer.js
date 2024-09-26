@@ -2,7 +2,7 @@ export class Renderer {
     static #canvas;
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
-    static POINT_SIZE = 10;
+    static POINT_SIZE = 3;
     static #device;
     static #context;
     static #presentationFormat;
@@ -20,7 +20,7 @@ export class Renderer {
     static #renderBindGroupB;
     static #computeBindGroupA;
     static #computeBindGroupB;
-    static #numVertices = 1000;
+    static #numVertices = 10000;
     static #step = 0;
     static isDrawing = false;
     static #multisampleTexture;
@@ -65,7 +65,7 @@ export class Renderer {
     static #initializeMultisampleTexture() {
         this.#multisampleTexture = this.#device.createTexture({
             size: { width: this.WIDTH, height: this.HEIGHT },
-            sampleCount: 4,
+            sampleCount: 1,
             format: this.#presentationFormat,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
@@ -126,7 +126,7 @@ export class Renderer {
                 topology: "triangle-list",
             },
             multisample: {
-                count: 4,
+                count: 1,
             },
         });
         this.#computePipeline = this.#device.createComputePipeline({
@@ -155,7 +155,7 @@ export class Renderer {
                 topology: "triangle-list",
             },
             multisample: {
-                count: 4,
+                count: 1,
             },
         });
     }
@@ -212,8 +212,7 @@ export class Renderer {
             label: "Point list render pass",
             colorAttachments: [
                 {
-                    view: this.#multisampleView,
-                    resolveTarget: this.#context.getCurrentTexture().createView(),
+                    view: this.#context.getCurrentTexture().createView(),
                     loadOp: "clear",
                     clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                     storeOp: "store",

@@ -3,7 +3,7 @@ export class Renderer {
 
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
-    static POINT_SIZE = 10; // Set the desired point size
+    static POINT_SIZE = 3; // Set the desired point size
 
     static #device: GPUDevice;
     static #context: GPUCanvasContext;
@@ -30,7 +30,7 @@ export class Renderer {
     static #computeBindGroupB: GPUBindGroup;
     // static #backgroundBindGroup: GPUBindGroup;
 
-    static #numVertices = 1000; // This should remain the same if you have 1000 particles
+    static #numVertices = 10000; // This should remain the same if you have 1000 particles
 
     static #step: number = 0;
     static isDrawing: boolean = false;
@@ -96,7 +96,7 @@ export class Renderer {
     static #initializeMultisampleTexture() {
         this.#multisampleTexture = this.#device.createTexture({
             size: { width: this.WIDTH, height: this.HEIGHT },
-            sampleCount: 4,
+            sampleCount: 1, // Set sampleCount to 1 to disable MSAA
             format: this.#presentationFormat,
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
@@ -169,7 +169,7 @@ export class Renderer {
                 topology: "triangle-list",
             },
             multisample: {
-                count: 4,
+                count: 1, // Set sampleCount to 1 to disable MSAA
             },
         });
 
@@ -200,7 +200,7 @@ export class Renderer {
                 topology: "triangle-list",
             },
             multisample: {
-                count: 4, // Add this line to enable multisampling
+                count: 1, // Set sampleCount to 1 to disable MSAA
             },
         });
     }
@@ -269,8 +269,7 @@ export class Renderer {
             label: "Point list render pass",
             colorAttachments: [
                 {
-                    view: this.#multisampleView,
-                    resolveTarget: this.#context.getCurrentTexture().createView(),
+                    view: this.#context.getCurrentTexture().createView(), // Use the current texture view directly
                     loadOp: "clear",
                     clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                     storeOp: "store",
