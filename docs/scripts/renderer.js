@@ -3,6 +3,7 @@ export class Renderer {
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
     static POINT_SIZE = 3;
+    static NUM_CIRCLES = 10000;
     static #device;
     static #context;
     static #presentationFormat;
@@ -11,6 +12,7 @@ export class Renderer {
     static #uniformBuffer;
     static #vertexBufferA;
     static #vertexBufferB;
+    static #colorBuffer;
     static #renderPipeline;
     static #computePipeline;
     static #backgroundPipeline;
@@ -20,19 +22,14 @@ export class Renderer {
     static #renderBindGroupB;
     static #computeBindGroupA;
     static #computeBindGroupB;
-    static #numVertices = 10000;
     static #step = 0;
     static isDrawing = false;
-    static #multisampleTexture;
-    static #multisampleView;
-    static resize() {
+    static resize(pointsize = this.POINT_SIZE) {
         this.WIDTH = window.innerWidth;
         this.HEIGHT = window.innerHeight;
         this.#canvas.width = this.WIDTH;
         this.#canvas.height = this.HEIGHT;
-        this.#device.queue.writeBuffer(this.#uniformBuffer, 0, new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]));
-        this.#multisampleTexture.destroy();
-        this.#initializeMultisampleTexture();
+        this.#device.queue.writeBuffer(this.#uniformBuffer, 0, new Float32Array([this.WIDTH, this.HEIGHT, pointsize, 0]));
     }
     static async init() {
         const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
@@ -57,19 +54,9 @@ export class Renderer {
             label: "Background shader",
             code: await this.#getShaderCode('./shaders/background.wgsl'),
         });
-        this.#initializeMultisampleTexture();
         this.#initializeBuffers();
         this.#initializePipelines();
         this.#initializeBindGroups();
-    }
-    static #initializeMultisampleTexture() {
-        this.#multisampleTexture = this.#device.createTexture({
-            size: { width: this.WIDTH, height: this.HEIGHT },
-            sampleCount: 1,
-            format: this.#presentationFormat,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-        this.#multisampleView = this.#multisampleTexture.createView();
     }
     static #initializeBuffers() {
         this.#uniformBuffer = this.#device.createBuffer({
@@ -78,8 +65,8 @@ export class Renderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
         this.#device.queue.writeBuffer(this.#uniformBuffer, 0, new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]));
-        const vertexData = new Float32Array(this.#numVertices * 2);
-        for (let i = 0; i < this.#numVertices; i++) {
+        const vertexData = new Float32Array(this.NUM_CIRCLES * 2);
+        for (let i = 0; i < this.NUM_CIRCLES; i++) {
             vertexData[i * 2] = Math.random() * this.WIDTH;
             vertexData[i * 2 + 1] = Math.random() * this.HEIGHT;
         }
@@ -91,6 +78,46 @@ export class Renderer {
         });
         new Float32Array(this.#vertexBufferA.getMappedRange()).set(vertexData);
         this.#vertexBufferA.unmap();
+        const colorData = new Float32Array(this.NUM_CIRCLES * 4);
+        for (let i = 0; i < this.NUM_CIRCLES; i++) {
+            const hue = Math.random() * 360;
+            const saturation = 1;
+            const lightness = 0.5;
+            const c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+            const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+            const m = lightness - c / 2;
+            let r, g, b;
+            if (hue < 60) {
+                [r, g, b] = [c, x, 0];
+            }
+            else if (hue < 120) {
+                [r, g, b] = [x, c, 0];
+            }
+            else if (hue < 180) {
+                [r, g, b] = [0, c, x];
+            }
+            else if (hue < 240) {
+                [r, g, b] = [0, x, c];
+            }
+            else if (hue < 300) {
+                [r, g, b] = [x, 0, c];
+            }
+            else {
+                [r, g, b] = [c, 0, x];
+            }
+            colorData[i * 4] = r + m;
+            colorData[i * 4 + 1] = g + m;
+            colorData[i * 4 + 2] = b + m;
+            colorData[i * 4 + 3] = 1.0;
+        }
+        this.#colorBuffer = this.#device.createBuffer({
+            label: "Color buffer",
+            size: colorData.byteLength,
+            usage: GPUBufferUsage.STORAGE,
+            mappedAtCreation: true,
+        });
+        new Float32Array(this.#colorBuffer.getMappedRange()).set(colorData);
+        this.#colorBuffer.unmap();
         this.#vertexBufferB = this.#device.createBuffer({
             label: "Vertex buffer B",
             size: vertexData.byteLength,
@@ -168,6 +195,7 @@ export class Renderer {
             entries: [
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferA } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
         this.#renderBindGroupB = this.#device.createBindGroup({
@@ -176,6 +204,7 @@ export class Renderer {
             entries: [
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferB } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
         this.#computeBindGroupA = this.#device.createBindGroup({
@@ -206,7 +235,7 @@ export class Renderer {
         });
         computePass.setPipeline(this.#computePipeline);
         computePass.setBindGroup(0, this.#step % 2 === 0 ? this.#computeBindGroupA : this.#computeBindGroupB);
-        computePass.dispatchWorkgroups(Math.ceil(this.#numVertices / 256));
+        computePass.dispatchWorkgroups(Math.ceil(this.NUM_CIRCLES / 256));
         computePass.end();
         const renderPassDescriptor = {
             label: "Point list render pass",
@@ -225,7 +254,7 @@ export class Renderer {
         renderPass.setPipeline(this.#renderPipeline);
         renderPass.setBindGroup(0, this.#step % 2 === 0 ? this.#renderBindGroupB : this.#renderBindGroupA);
         renderPass.setVertexBuffer(0, this.#step % 2 === 0 ? this.#vertexBufferB : this.#vertexBufferA);
-        renderPass.draw(this.#numVertices * 6);
+        renderPass.draw(this.NUM_CIRCLES * 6);
         renderPass.end();
         this.#device.queue.submit([commandEncoder.finish()]);
         this.#step++;
@@ -238,3 +267,4 @@ export class Renderer {
         return await response.text();
     }
 }
+window.Renderer = Renderer;

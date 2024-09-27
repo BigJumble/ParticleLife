@@ -8,6 +8,5 @@ async function main() {
     await Renderer.init();
     Actions.init();
     Animator.startUpdate();
-    Animator.logFPS();
 }
 main();

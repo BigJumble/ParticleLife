@@ -4,6 +4,8 @@ export class Renderer {
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
     static POINT_SIZE = 3; // Set the desired point size
+    static NUM_CIRCLES = 10000; 
+
 
     static #device: GPUDevice;
     static #context: GPUCanvasContext;
@@ -15,6 +17,7 @@ export class Renderer {
     static #uniformBuffer: GPUBuffer;
     static #vertexBufferA: GPUBuffer;
     static #vertexBufferB: GPUBuffer;
+    static #colorBuffer: GPUBuffer;
 
     static #renderPipeline: GPURenderPipeline;
     static #computePipeline: GPUComputePipeline;
@@ -30,15 +33,13 @@ export class Renderer {
     static #computeBindGroupB: GPUBindGroup;
     // static #backgroundBindGroup: GPUBindGroup;
 
-    static #numVertices = 10000; // This should remain the same if you have 1000 particles
+
 
     static #step: number = 0;
     static isDrawing: boolean = false;
 
-    static #multisampleTexture: GPUTexture;
-    static #multisampleView: GPUTextureView;
 
-    static resize() {
+    static resize(pointsize: number = this.POINT_SIZE) {
         this.WIDTH = window.innerWidth;
         this.HEIGHT = window.innerHeight;
         this.#canvas.width = this.WIDTH;
@@ -48,12 +49,9 @@ export class Renderer {
         this.#device.queue.writeBuffer(
             this.#uniformBuffer,
             0,
-            new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0])
+            new Float32Array([this.WIDTH, this.HEIGHT, pointsize, 0])
         );
 
-        // Recreate the multisampled texture with new dimensions
-        this.#multisampleTexture.destroy();
-        this.#initializeMultisampleTexture();
     }
 
     static async init() {
@@ -87,21 +85,13 @@ export class Renderer {
             code: await this.#getShaderCode('./shaders/background.wgsl'),
         });
 
-        this.#initializeMultisampleTexture();
+
         this.#initializeBuffers();
         this.#initializePipelines();
         this.#initializeBindGroups();
     }
 
-    static #initializeMultisampleTexture() {
-        this.#multisampleTexture = this.#device.createTexture({
-            size: { width: this.WIDTH, height: this.HEIGHT },
-            sampleCount: 1, // Set sampleCount to 1 to disable MSAA
-            format: this.#presentationFormat,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
-        this.#multisampleView = this.#multisampleTexture.createView();
-    }
+
 
     static #initializeBuffers() {
         this.#uniformBuffer = this.#device.createBuffer({
@@ -116,8 +106,8 @@ export class Renderer {
             new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]) // Added point size, 0 for padding
         );
 
-        const vertexData = new Float32Array(this.#numVertices * 2);
-        for (let i = 0; i < this.#numVertices; i++) {
+        const vertexData = new Float32Array(this.NUM_CIRCLES * 2);
+        for (let i = 0; i < this.NUM_CIRCLES; i++) {
             vertexData[i * 2] = Math.random() * this.WIDTH;
             vertexData[i * 2 + 1] = Math.random() * this.HEIGHT;
         }
@@ -132,11 +122,55 @@ export class Renderer {
         new Float32Array(this.#vertexBufferA.getMappedRange()).set(vertexData);
         this.#vertexBufferA.unmap();
 
+        const colorData = new Float32Array(this.NUM_CIRCLES * 4);
+        for (let i = 0; i < this.NUM_CIRCLES; i++) {
+            // Generate vibrant colors using HSL
+            const hue = Math.random() * 360; // Full hue range
+            const saturation = 1; // High saturation (70-100%)
+            const lightness = 0.5; // Medium to high lightness (50-70%)
+
+            // Convert HSL to RGB
+            const c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+            const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+            const m = lightness - c / 2;
+            let r, g, b;
+            if (hue < 60) {
+                [r, g, b] = [c, x, 0];
+            } else if (hue < 120) {
+                [r, g, b] = [x, c, 0];
+            } else if (hue < 180) {
+                [r, g, b] = [0, c, x];
+            } else if (hue < 240) {
+                [r, g, b] = [0, x, c];
+            } else if (hue < 300) {
+                [r, g, b] = [x, 0, c];
+            } else {
+                [r, g, b] = [c, 0, x];
+            }
+
+            colorData[i * 4] = r + m;
+            colorData[i * 4 + 1] =  g + m;
+            colorData[i * 4 + 2] =  b + m;
+            colorData[i * 4 + 3] = 1.0// alpha;
+        }
+
+        this.#colorBuffer = this.#device.createBuffer({
+            label: "Color buffer",
+            size: colorData.byteLength,
+            usage: GPUBufferUsage.STORAGE,
+            mappedAtCreation: true,
+        });
+
+        new Float32Array(this.#colorBuffer.getMappedRange()).set(colorData);
+        this.#colorBuffer.unmap();
+
         this.#vertexBufferB = this.#device.createBuffer({
             label: "Vertex buffer B",
             size: vertexData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
         });
+
+
 
     }
 
@@ -216,6 +250,7 @@ export class Renderer {
             entries: [
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferA } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
 
@@ -225,6 +260,7 @@ export class Renderer {
             entries: [
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferB } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
 
@@ -262,7 +298,7 @@ export class Renderer {
         });
         computePass.setPipeline(this.#computePipeline);
         computePass.setBindGroup(0, this.#step % 2 === 0 ? this.#computeBindGroupA : this.#computeBindGroupB);
-        computePass.dispatchWorkgroups(Math.ceil(this.#numVertices / 256));
+        computePass.dispatchWorkgroups(Math.ceil(this.NUM_CIRCLES / 256));
         computePass.end();
 
         const renderPassDescriptor: GPURenderPassDescriptor = {
@@ -279,7 +315,7 @@ export class Renderer {
 
         const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
 
-        // Render background
+                // Render background
         renderPass.setPipeline(this.#backgroundPipeline);
         renderPass.draw(6); // Draw 2 triangles for a fullscreen quad
 
@@ -287,7 +323,9 @@ export class Renderer {
         renderPass.setPipeline(this.#renderPipeline);
         renderPass.setBindGroup(0, this.#step % 2 === 0 ? this.#renderBindGroupB : this.#renderBindGroupA);
         renderPass.setVertexBuffer(0, this.#step % 2 === 0 ? this.#vertexBufferB : this.#vertexBufferA);
-        renderPass.draw(this.#numVertices * 6); // Draw 6 vertices per particle, with this.#numVertices instances
+        renderPass.draw(this.NUM_CIRCLES * 6); // Draw 6 vertices per particle, with this.NUM_CIRCLES instances
+
+
 
         renderPass.end();
 
@@ -304,3 +342,5 @@ export class Renderer {
         return await response.text();
     }
 }
+
+(window as any).Renderer = Renderer;

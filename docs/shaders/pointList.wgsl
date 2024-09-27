@@ -2,6 +2,7 @@ struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) center: vec2<f32>,
+    @location(2) color: vec4<f32>,
 }
 
 struct Uniforms {
@@ -17,6 +18,7 @@ struct Vertex {
 
 @group(0) @binding(1) var<storage, read> verticesSrc: array<Vertex>;
 @group(0) @binding(2) var<storage, read_write> verticesDst: array<Vertex>;
+@group(0) @binding(3) var<storage, read> colors: array<vec4<f32>>;
 
 @compute @workgroup_size(256)
 fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -28,7 +30,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var vertex = verticesSrc[index];
 
     // Move the point down
-    vertex.position.y -= (f32(index)%4.0+3.0)*0.2;
+    vertex.position.y -= (f32(index)%4.0+3.0)*0.02;
 
     // Loop back to bottom if outside the window
     if (vertex.position.y < 0.0) {
@@ -76,9 +78,15 @@ fn vertexMain(
     output.position = vec4<f32>(ndcPos, 0.0, 1.0);
     output.texCoord = texCoords[cornerIndex];
     output.center = center;
+
+    output.color = colors[instanceIndex];
+
+
     
     return output;
 }
+
+
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
@@ -88,9 +96,11 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
     
-    // Smooth circle edge
-
-    let alpha = 1.0 - smoothstep(0.2, 0.5, dist);
+    let pixelWidth = 0.7 / uniforms.pointSize;
     
-    return vec4<f32>(0.0, 0.0, 0.0, alpha); // Red circle
+    let innerRadius = 0.5 - pixelWidth;
+
+    let alpha = 1.0 - smoothstep(innerRadius, 0.5, dist);
+    
+    return vec4<f32>(input.color.xyz, alpha);
 }

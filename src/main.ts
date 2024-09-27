@@ -13,6 +13,9 @@ async function main(){
     Actions.init();
 
     Animator.startUpdate();
-    Animator.logFPS();
+    // Animator.logFPS();
 }
 main();
+
+
+
