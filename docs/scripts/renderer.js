@@ -3,7 +3,7 @@ export class Renderer {
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
     static POINT_SIZE = 3;
-    static NUM_CIRCLES = 10000;
+    static NUM_CIRCLES = 1000;
     static #device;
     static #context;
     static #presentationFormat;
@@ -65,18 +65,20 @@ export class Renderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
         this.#device.queue.writeBuffer(this.#uniformBuffer, 0, new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]));
-        const vertexData = new Float32Array(this.NUM_CIRCLES * 2);
+        const particleData = new Float32Array(this.NUM_CIRCLES * 4);
         for (let i = 0; i < this.NUM_CIRCLES; i++) {
-            vertexData[i * 2] = Math.random() * this.WIDTH;
-            vertexData[i * 2 + 1] = Math.random() * this.HEIGHT;
+            particleData[i * 4] = Math.random() * this.WIDTH;
+            particleData[i * 4 + 1] = Math.random() * this.HEIGHT;
+            particleData[i * 4 + 2] = 0;
+            particleData[i * 4 + 3] = 0;
         }
         this.#vertexBufferA = this.#device.createBuffer({
-            label: "Vertex buffer A",
-            size: vertexData.byteLength,
+            label: "Particle buffer A",
+            size: particleData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
             mappedAtCreation: true,
         });
-        new Float32Array(this.#vertexBufferA.getMappedRange()).set(vertexData);
+        new Float32Array(this.#vertexBufferA.getMappedRange()).set(particleData);
         this.#vertexBufferA.unmap();
         const colorData = new Float32Array(this.NUM_CIRCLES * 4);
         for (let i = 0; i < this.NUM_CIRCLES; i++) {
@@ -119,8 +121,8 @@ export class Renderer {
         new Float32Array(this.#colorBuffer.getMappedRange()).set(colorData);
         this.#colorBuffer.unmap();
         this.#vertexBufferB = this.#device.createBuffer({
-            label: "Vertex buffer B",
-            size: vertexData.byteLength,
+            label: "Particle buffer B",
+            size: particleData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
         });
     }
@@ -214,6 +216,7 @@ export class Renderer {
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferA } },
                 { binding: 2, resource: { buffer: this.#vertexBufferB } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
         this.#computeBindGroupB = this.#device.createBindGroup({
@@ -223,10 +226,12 @@ export class Renderer {
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferB } },
                 { binding: 2, resource: { buffer: this.#vertexBufferA } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } },
             ],
         });
     }
     static update(deltaTime) {
+        this.#device.queue.writeBuffer(this.#uniformBuffer, 12, new Float32Array([deltaTime]));
         const commandEncoder = this.#device.createCommandEncoder({
             label: "Point list command encoder"
         });

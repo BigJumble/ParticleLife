@@ -34,7 +34,8 @@ export class Animator {
         Animator.lastTimestamp = timestamp;
         Animator.FPSCounter++;
         Controller.update(Animator.deltaTime);
-        Renderer.update(Animator.deltaTime);
+        if (Animator.isUpdating)
+            Renderer.update(Animator.deltaTime);
         if (Animator.FPSLimit === 0)
             requestAnimationFrame(Animator.#smoothUpdate);
     }

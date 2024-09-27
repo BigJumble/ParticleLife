@@ -4,7 +4,7 @@ export class Renderer {
     static WIDTH = window.innerWidth;
     static HEIGHT = window.innerHeight;
     static POINT_SIZE = 3; // Set the desired point size
-    static NUM_CIRCLES = 10000; 
+    static NUM_CIRCLES = 1000; 
 
 
     static #device: GPUDevice;
@@ -96,30 +96,32 @@ export class Renderer {
     static #initializeBuffers() {
         this.#uniformBuffer = this.#device.createBuffer({
             label: "Uniform buffer",
-            size: 16, // Increased size to accommodate point size
+            size: 16, // Increased size to accommodate deltaTime
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
         this.#device.queue.writeBuffer(
             this.#uniformBuffer,
             0,
-            new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]) // Added point size, 0 for padding
+            new Float32Array([this.WIDTH, this.HEIGHT, this.POINT_SIZE, 0]) // 0 for initial deltaTime
         );
 
-        const vertexData = new Float32Array(this.NUM_CIRCLES * 2);
+        const particleData = new Float32Array(this.NUM_CIRCLES * 4); // 2 for position, 2 for velocity
         for (let i = 0; i < this.NUM_CIRCLES; i++) {
-            vertexData[i * 2] = Math.random() * this.WIDTH;
-            vertexData[i * 2 + 1] = Math.random() * this.HEIGHT;
+            particleData[i * 4] = Math.random() * this.WIDTH;
+            particleData[i * 4 + 1] = Math.random() * this.HEIGHT;
+            particleData[i * 4 + 2] = 0; // Initial velocity x
+            particleData[i * 4 + 3] = 0; // Initial velocity y
         }
 
         this.#vertexBufferA = this.#device.createBuffer({
-            label: "Vertex buffer A",
-            size: vertexData.byteLength,
+            label: "Particle buffer A",
+            size: particleData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
             mappedAtCreation: true,
         });
 
-        new Float32Array(this.#vertexBufferA.getMappedRange()).set(vertexData);
+        new Float32Array(this.#vertexBufferA.getMappedRange()).set(particleData);
         this.#vertexBufferA.unmap();
 
         const colorData = new Float32Array(this.NUM_CIRCLES * 4);
@@ -147,7 +149,9 @@ export class Renderer {
             } else {
                 [r, g, b] = [c, 0, x];
             }
-
+            // colorData[i * 4] = 0;
+            // colorData[i * 4 + 1] =  0;
+            // colorData[i * 4 + 2] =  1;
             colorData[i * 4] = r + m;
             colorData[i * 4 + 1] =  g + m;
             colorData[i * 4 + 2] =  b + m;
@@ -165,8 +169,8 @@ export class Renderer {
         this.#colorBuffer.unmap();
 
         this.#vertexBufferB = this.#device.createBuffer({
-            label: "Vertex buffer B",
-            size: vertexData.byteLength,
+            label: "Particle buffer B",
+            size: particleData.byteLength,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
         });
 
@@ -271,6 +275,7 @@ export class Renderer {
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferA } },
                 { binding: 2, resource: { buffer: this.#vertexBufferB } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } }, // Add this line
             ],
         });
 
@@ -281,6 +286,7 @@ export class Renderer {
                 { binding: 0, resource: { buffer: this.#uniformBuffer } },
                 { binding: 1, resource: { buffer: this.#vertexBufferB } },
                 { binding: 2, resource: { buffer: this.#vertexBufferA } },
+                { binding: 3, resource: { buffer: this.#colorBuffer } }, // Add this line
             ],
         });
 
@@ -289,6 +295,13 @@ export class Renderer {
 
 
     static update(deltaTime: number) {
+        // Update deltaTime in uniform buffer
+        this.#device.queue.writeBuffer(
+            this.#uniformBuffer,
+            12, // Offset for deltaTime (after screenSize and pointSize)
+            new Float32Array([deltaTime])
+        );
+
         const commandEncoder = this.#device.createCommandEncoder({
             label: "Point list command encoder"
         });

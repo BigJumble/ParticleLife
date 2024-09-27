@@ -72,6 +72,7 @@ export class Actions {
     {
         const res = this.#buttonsPressed.has(PA) && (!this.#buttonsPressedSingle.has(PA));
         if(res) this.#buttonsPressedSingle.add(PA);
+
         return res;
     }
 

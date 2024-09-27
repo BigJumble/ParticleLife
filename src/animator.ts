@@ -1,3 +1,4 @@
+import { Actions, PlayerAction } from "./actions.js";
 import { Controller } from "./controller.js";
 import { Renderer } from "./renderer.js";
 
@@ -42,8 +43,12 @@ export class Animator {
         Animator.FPSCounter++;
 
 
+
         Controller.update(Animator.deltaTime);
-        Renderer.update(Animator.deltaTime);
+
+        if (Animator.isUpdating)
+            Renderer.update(Animator.deltaTime);
+
         if (Animator.FPSLimit === 0)
             requestAnimationFrame(Animator.#smoothUpdate);
     }
