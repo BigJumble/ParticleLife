@@ -3,53 +3,39 @@
 export function createParticleLifeShader(device: GPUDevice) {
     return device.createShaderModule({
         label: "particleLifeShader",
-        code: `struct VertexOutput {
+        code: /* wgsl */`
+struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
-    @location(1) center: vec2<f32>,
-    @location(2) color: vec4<f32>,
+    @location(1) color: vec4<f32>,
 }
 
 struct Uniforms {
     screenSize: vec2<f32>,
     pointSize: f32,
+    colorsCount: u32,
     deltaTime: f32,
 }
-
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct Particle {
     position: vec2<f32>,
     velocity: vec2<f32>,
 }
 
+struct ColorForceRow {
+    force: f32,
+    padding: f32,
+    padding2: f32,
+    padding3: f32,
+}
+
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read> particlesRead: array<Particle>;
 @group(0) @binding(2) var<storage, read_write> particlesReadWrite: array<Particle>;
-@group(0) @binding(3) var<storage, read> colors: array<vec4<f32>>;
-
-fn calculateWrappedDistance(pos1: vec2<f32>, pos2: vec2<f32>) -> vec2<f32> {
-    // make 8 candidates for pos2, wrapped around the screen
-    let candidates = array<vec2<f32>, 8>(
-        vec2<f32>(pos2.x + uniforms.screenSize.x, pos2.y),
-        vec2<f32>(pos2.x - uniforms.screenSize.x, pos2.y),
-        vec2<f32>(pos2.x, pos2.y + uniforms.screenSize.y),
-        vec2<f32>(pos2.x, pos2.y - uniforms.screenSize.y),
-        vec2<f32>(pos2.x + uniforms.screenSize.x, pos2.y + uniforms.screenSize.y),
-        vec2<f32>(pos2.x - uniforms.screenSize.x, pos2.y + uniforms.screenSize.y),
-        vec2<f32>(pos2.x + uniforms.screenSize.x, pos2.y - uniforms.screenSize.y),
-        vec2<f32>(pos2.x - uniforms.screenSize.x, pos2.y - uniforms.screenSize.y)
-    );
-
-    var wrappedDiff = pos2 - pos1;
-    for (var i = 0u; i < 8u; i++) {
-        let candidateDiff = candidates[i] - pos1;
-        if (dot(candidateDiff, candidateDiff) < dot(wrappedDiff, wrappedDiff)) {
-            wrappedDiff = candidateDiff;
-        }
-    }
-
-    return wrappedDiff;
-}
+@group(0) @binding(3) var<storage, read> colorIds: array<u32>;
+@group(0) @binding(4) var<uniform> colorTable: array<vec4<f32>, 20>;
+@group(0) @binding(5) var<uniform> colorForceTable: array<array<vec4<f32>, 20>, 20>;
 
 @compute @workgroup_size(256)
 fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -60,7 +46,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var particle = particlesReadWrite[index];
     var force = vec2<f32>(0.0, 0.0);
-    let color = colors[index];
+    let colorId = colorIds[index];
     
     // Particle Life simulation
     for (var i = 0u; i < arrayLength(&particlesReadWrite); i++) {
@@ -69,23 +55,24 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
 
         let other = particlesReadWrite[i];
-        let diff: vec2<f32> = calculateWrappedDistance(particle.position, other.position);
+        let diff: vec2<f32> = other.position - particle.position;
         let distSq = dot(diff, diff);
+        let dist = sqrt(distSq);
 
-        if (distSq < uniforms.pointSize*uniforms.pointSize) {
+        if (dist < 1.0) {
             continue;
         }
 
-        let dist = sqrt(distSq);
         let direction = diff / dist;
 
-        // Isometric force calculation
-        let strength = calculateIsometricForce(dist, colors[index], colors[i]);
+        // Force calculation using force table and distance
+        let otherColorId = colorIds[i];
+        let strength = calculateForce(dist, colorId, otherColorId);
         force += direction * strength;
     }
 
     // Update velocity and position
-    particle.velocity += force * uniforms.deltaTime;
+    particle.velocity += force * uniforms.deltaTime*100;
     particle.velocity *= 0.99; // Damping
     particle.position += particle.velocity * uniforms.deltaTime;
 
@@ -96,102 +83,68 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     particlesReadWrite[index] = particle;
 }
 
-fn calculateIsometricForce(dist: f32, color1: vec4<f32>, color2: vec4<f32>) -> f32 {
-    let redChaseYellow = 100.0;
-    let optimalDistance = 150.0;
-    let repulsionStrength = 500.0;
-
-    // Check if color1 is red (chasing) and color2 is yellow (being chased)
-    let isRedChasingYellow = color1.r > 0.7 && color1.g < 0.3 && color1.b < 0.3 &&
-                             color2.r > 0.7 && color2.g > 0.7 && color2.b < 0.3;
-
-    if (isRedChasingYellow) {
-        // Red chases yellow
-        return -redChaseYellow / (dist + 1.0);
-    } else {
-        // Other particles maintain distance
-        let distanceForce = (dist - optimalDistance) / optimalDistance;
-        return distanceForce * repulsionStrength / (dist + 1.0);
-    }
-}
-
-fn rgb_to_hsv(rgb: vec3<f32>) -> vec3<f32> {
-    let v = max(max(rgb.r, rgb.g), rgb.b);
-    let c = v - min(min(rgb.r, rgb.g), rgb.b);
-    let s = select(0.0, c / v, v != 0.0);
+fn calculateForce(distance: f32, colorId1: u32, colorId2: u32) -> f32 {
+    // Get base force from the table
+    let baseForce = colorForceTable[colorId1][colorId2].x;
     
-    var h: f32;
-    if (c == 0.0) {
-        h = 0.0;
-    } else if (v == rgb.r) {
-        h = (rgb.g - rgb.b) / c;
-    } else if (v == rgb.g) {
-        h = 2.0 + (rgb.b - rgb.r) / c;
+    // Adjust force based on distance
+    let maxDistance = uniforms.pointSize * 20.0;
+    var forceFalloff: f32;
+    if (distance < uniforms.pointSize * 10.0) {
+        // Linear interpolation from -1 at distance 0 to 0 at distance 10*pointSize
+        forceFalloff = -1.0 + distance / (uniforms.pointSize * 10.0);
+    } else if (distance < maxDistance) {
+        // Quadratic falloff from 0 at distance 10*pointSize to 1 at distance 20*pointSize
+        let t = (distance - uniforms.pointSize * 10.0) / (uniforms.pointSize * 10.0);
+        forceFalloff = t * t;
     } else {
-        h = 4.0 + (rgb.r - rgb.g) / c;
+        forceFalloff = 0.0;
     }
     
-    h = (h / 6.0 + 1.0) % 1.0;
-    return vec3<f32>(h, s, v);
+    return baseForce * forceFalloff;
 }
 
 @vertex
-fn vertexMain(
-    @builtin(vertex_index) vertexIndex: u32
-) -> VertexOutput {
-    let cornerIndex = vertexIndex % 6u;
-    
-    let instanceIndex = vertexIndex / 6u;
+fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+    let instanceIndex = vertexIndex / 3u;
     let particle = particlesRead[instanceIndex];
     let center = particle.position;
     
-    let cornerOffsets = array<vec2<f32>, 6>(
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(-1.0, 1.0)
+    // Define a single equilateral triangle that fits a circle of radius 1
+    let triangleVertices = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 2.0),
+        vec2<f32>(-1.732, -1.0),
+        vec2<f32>(1.732, -1.0)
     );
     
-    let texCoords = array<vec2<f32>, 6>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(0.0, 1.0)
-    );
-    
-    let offset = cornerOffsets[cornerIndex] * uniforms.pointSize;
-    let worldPos = center + offset;
+    let vertexOffset = triangleVertices[vertexIndex % 3u] * uniforms.pointSize;
+    let worldPos = center + vertexOffset;
     let ndcPos = (worldPos / uniforms.screenSize) * 2.0 - 1.0;
     
     var output: VertexOutput;
     output.position = vec4<f32>(ndcPos, 0.0, 1.0);
-    output.texCoord = texCoords[cornerIndex];
-    output.center = center;
-
-    output.color = colors[instanceIndex];
+    output.texCoord = triangleVertices[vertexIndex % 3u] * 0.5 + 0.5;
+    output.color = colorTable[colorIds[instanceIndex]];
     
     return output;
 }
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-    let dist = distance(input.texCoord, vec2<f32>(0.5, 0.5));
+    let diff = input.texCoord - vec2<f32>(0.5, 0.5);
+    let distSquared = dot(diff, diff);
     
-    if (dist > 0.5) {
+    if (distSquared > 0.25) {
         discard;
     }
     
-    let pixelWidth = 0.7 / uniforms.pointSize;
-    
+    let pixelWidth = 0.8 / uniforms.pointSize;
     let innerRadius = 0.5 - pixelWidth;
+    let innerRadiusSquared = innerRadius * innerRadius;
 
-    let alpha = 1.0 - smoothstep(innerRadius, 0.5, dist);
+    let alpha = 1.0 - smoothstep(innerRadiusSquared, 0.25, distSquared);
     
     return vec4<f32>(input.color.xyz, alpha);
-}`
-    });
 }
+`
+});}

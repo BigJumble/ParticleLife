@@ -7,7 +7,7 @@ import { initWebGPU } from './functions/initWebGPU.ts';
 import { createBackgroundShader } from './shaders/backgroundShader.ts';
 import { createParticleLifeShader } from './shaders/particleLifeShader.ts';
 import { initBuffers } from './functions/initBuffers.ts';
-import { NUM_PARTICLES, POINT_SIZE } from './functions/constants.ts';
+import { NUM_PARTICLES, POINT_SIZE, NUM_COLORS } from './functions/constants.ts';
 
 
 
@@ -32,6 +32,9 @@ function App() {
   const uniformBuffer = useRef<GPUBuffer | null>(null);
   const particleBuffer = useRef<GPUBuffer | null>(null);
   const colorBuffer = useRef<GPUBuffer | null>(null);
+  const colorTableBuffer = useRef<GPUBuffer | null>(null);
+  const forceTableBuffer = useRef<GPUBuffer | null>(null);
+
 
   const renderPipeline = useRef<GPURenderPipeline | null>(null);
   const backgroundPipeline = useRef<GPURenderPipeline | null>(null);
@@ -65,8 +68,9 @@ function App() {
     uniformBuffer.current = buffers.uniformBuffer;
     updateUniforms();
     particleBuffer.current = buffers.particleBuffer;
+    colorTableBuffer.current = buffers.colorTableBuffer;
     colorBuffer.current = buffers.colorBuffer;
-
+    forceTableBuffer.current = buffers.forceTableBuffer;
     // init pipelines
 
     renderPipeline.current = device.current.createRenderPipeline({
@@ -145,6 +149,7 @@ function App() {
         { binding: 0, resource: { buffer: uniformBuffer.current } },
         { binding: 1, resource: { buffer: particleBuffer.current } },
         { binding: 3, resource: { buffer: colorBuffer.current } },
+        { binding: 4, resource: { buffer: colorTableBuffer.current } },
       ]
     })
 
@@ -155,6 +160,7 @@ function App() {
         { binding: 0, resource: { buffer: uniformBuffer.current } },
         { binding: 2, resource: { buffer: particleBuffer.current } },
         { binding: 3, resource: { buffer: colorBuffer.current } },
+        { binding: 5, resource: { buffer: forceTableBuffer.current } },
       ]
     })
     
@@ -170,7 +176,7 @@ function App() {
     // Update deltaTime in uniform buffer
     device.current!.queue.writeBuffer(
         uniformBuffer.current!,
-        12, // Offset for deltaTime (after screenSize and pointSize)
+        16, // Offset for deltaTime (after screenSize and pointSize)
         new Float32Array([deltaTime])
     );
 
@@ -203,7 +209,7 @@ function App() {
     // Render particles
     renderPass.setPipeline(renderPipeline.current!);
     renderPass.setBindGroup(0, renderBindGroup.current);
-    renderPass.draw(NUM_PARTICLES * 6); // Draw 6 vertices per particle, with NUM_CIRCLES instances
+    renderPass.draw(NUM_PARTICLES * 3); // Draw 6 vertices per particle, with NUM_CIRCLES instances
 
     renderPass.end();
 
@@ -216,7 +222,7 @@ function App() {
 
   function updateUniforms() {
     if (device.current && uniformBuffer.current) {
-      const uniformData = new Float32Array([dimensions.current.width, dimensions.current.height, POINT_SIZE, 0]);
+      const uniformData = new Float32Array([dimensions.current.width, dimensions.current.height, POINT_SIZE, NUM_COLORS, 0]);
       device.current.queue.writeBuffer(uniformBuffer.current, 0, uniformData);
     }
   } 
