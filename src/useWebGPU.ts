@@ -4,8 +4,9 @@ import { useEffect, useRef } from 'react';
 
 export function useWebGPU(canvasRef: React.RefObject<HTMLCanvasElement>) {
   const webGPUState = useRef({
-
-
+    device: null as GPUDevice | null,
+    context: null as GPUCanvasContext | null,
+    presentationFormat: null as GPUTextureFormat | null,
   });
 
   const getShaderCode = async (dir: string): Promise<string> => {
