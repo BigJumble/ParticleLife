@@ -1,4 +1,9 @@
-struct VertexOutput {
+/// <reference types="@webgpu/types" />
+
+export function createParticleLifeShader(device: GPUDevice) {
+    return device.createShaderModule({
+        label: "particleLifeShader",
+        code: `struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) center: vec2<f32>,
@@ -18,8 +23,8 @@ struct Particle {
     velocity: vec2<f32>,
 }
 
-@group(0) @binding(1) var<storage, read> particlesSrc: array<Particle>;
-@group(0) @binding(2) var<storage, read_write> particlesDst: array<Particle>;
+@group(0) @binding(1) var<storage, read> particlesRead: array<Particle>;
+@group(0) @binding(2) var<storage, read_write> particlesReadWrite: array<Particle>;
 @group(0) @binding(3) var<storage, read> colors: array<vec4<f32>>;
 
 fn calculateWrappedDistance(pos1: vec2<f32>, pos2: vec2<f32>) -> vec2<f32> {
@@ -49,21 +54,21 @@ fn calculateWrappedDistance(pos1: vec2<f32>, pos2: vec2<f32>) -> vec2<f32> {
 @compute @workgroup_size(256)
 fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x;
-    if (index >= arrayLength(&particlesSrc)) {
+    if (index >= arrayLength(&particlesReadWrite)) {
         return;
     }
 
-    var particle = particlesSrc[index];
+    var particle = particlesReadWrite[index];
     var force = vec2<f32>(0.0, 0.0);
     let color = colors[index];
     
     // Particle Life simulation
-    for (var i = 0u; i < arrayLength(&particlesSrc); i++) {
+    for (var i = 0u; i < arrayLength(&particlesReadWrite); i++) {
         if (i == index) {
             continue;
         }
 
-        let other = particlesSrc[i];
+        let other = particlesReadWrite[i];
         let diff: vec2<f32> = calculateWrappedDistance(particle.position, other.position);
         let distSq = dot(diff, diff);
 
@@ -88,7 +93,7 @@ fn computeMain(@builtin(global_invocation_id) global_id: vec3<u32>) {
     particle.position = (particle.position + uniforms.screenSize) % uniforms.screenSize;
     
     // Write to the destination buffer
-    particlesDst[index] = particle;
+    particlesReadWrite[index] = particle;
 }
 
 fn calculateIsometricForce(dist: f32, color1: vec4<f32>, color2: vec4<f32>) -> f32 {
@@ -137,7 +142,7 @@ fn vertexMain(
     let cornerIndex = vertexIndex % 6u;
     
     let instanceIndex = vertexIndex / 6u;
-    let particle = particlesSrc[instanceIndex];
+    let particle = particlesRead[instanceIndex];
     let center = particle.position;
     
     let cornerOffsets = array<vec2<f32>, 6>(
@@ -187,4 +192,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let alpha = 1.0 - smoothstep(innerRadius, 0.5, dist);
     
     return vec4<f32>(input.color.xyz, alpha);
+}`
+    });
 }
