@@ -1,5 +1,5 @@
 /// <reference types="@webgpu/types" />
-import { NUM_PARTICLES, NUM_COLORS, POINT_SIZE } from './constants';
+import { NUM_PARTICLES, NUM_COLORS } from './constants';
 
 export function initBuffers(device: GPUDevice, dimensions: { width: number; height: number }) {
 

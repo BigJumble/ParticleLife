@@ -1,6 +1,6 @@
 /// <reference types="@webgpu/types" />
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 // GPU stuff
 import { initWebGPU } from './functions/initWebGPU.ts';
