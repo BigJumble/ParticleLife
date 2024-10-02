@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/functions/constants.ts","./src/functions/initbuffers.ts","./src/functions/initwebgpu.ts","./src/shaders/backgroundshader.ts","./src/shaders/particlelifeshader.ts"],"version":"5.6.2"}
+{"root":["./src/app.tsx","./src/menu.tsx","./src/simulation.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/functions/constants.ts","./src/functions/initbuffers.ts","./src/functions/initwebgpu.ts","./src/shaders/blobshader.ts","./src/shaders/particlelifeshader.ts"],"version":"5.6.2"}

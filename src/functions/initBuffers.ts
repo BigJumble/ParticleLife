@@ -32,12 +32,32 @@ export function initBuffers(device: GPUDevice, dimensions: { width: number; heig
 
 
   const colorTableData = new Float32Array(Math.max(NUM_COLORS, 20) * 4);
-  for (let i = 0; i < NUM_COLORS; i++) {
-    colorTableData[i * 4] = Math.random();
-    colorTableData[i * 4 + 1] = Math.random();
-    colorTableData[i * 4 + 2] = Math.random();
-    colorTableData[i * 4 + 3] = 1;
-  }
+  // for (let i = 0; i < NUM_COLORS; i++) {
+  //   colorTableData[i * 4] = Math.random();
+  //   colorTableData[i * 4 + 1] = Math.random();
+  //   colorTableData[i * 4 + 2] = Math.random();
+  //   colorTableData[i * 4 + 3] = 1;
+  // }
+  // col1 = 2CF982, col2 = F66374, col3 = 636363, col4 = F9F982
+  colorTableData[0] = 0.192;
+  colorTableData[1] = 0.976;
+  colorTableData[2] = 0.506;
+  colorTableData[3] = 1;
+
+  colorTableData[4] = 0.961;
+  colorTableData[5] = 0.388;
+  colorTableData[6] = 0.455;
+  colorTableData[7] = 1;
+  
+  colorTableData[8] = 0.4902;
+  colorTableData[9] = 0.0;
+  colorTableData[10] = 0.9569;
+  colorTableData[11] = 1;
+
+  colorTableData[12] = 0.988;
+  colorTableData[13] = 0.988;
+  colorTableData[14] = 0.506;
+  colorTableData[15] = 1;
 
   const colorTableBuffer = device.createBuffer({
     label: "colorTable",
@@ -73,25 +93,25 @@ export function initBuffers(device: GPUDevice, dimensions: { width: number; heig
   for (let i = 0; i < NUM_COLORS; i++) {
     for (let j = 0; j < NUM_COLORS; j++) {
       const index = (i * 20 + j) * 4;  // Use 20 as stride due to uniform buffer limitation
-      forceTableData[index] = Math.random() * 2 - 1;  // Random value between -1 and 1
+      forceTableData[index] = 0;  // Random value between -1 and 1
       forceTableData[index + 1] = 0.0;  // Padding
       forceTableData[index + 2] = 0.0;  // Padding
       forceTableData[index + 3] = 0.0;  // Padding
     }
   }
 
-  // Make 0 attracted to 1, 1 to 2, 2 to 3, ..., (NUM_COLORS-1) to 0
-  for (let i = 0; i < NUM_COLORS; i++) {
-    const attractIndex = (i * 20 + ((i + 1) % NUM_COLORS)) * 4;
-    const repelIndex = (((i + 1) % NUM_COLORS) * 20 + i) * 4;
-    forceTableData[attractIndex] = -2.0;  // Attraction
-    forceTableData[repelIndex] = 1.0;     // Repulsion
-  }
-  // make same colors repel
-  for (let i = 0; i < NUM_COLORS; i++) {
-    const repelIndex = (i * 20 + i) * 4;
-    forceTableData[repelIndex] = 1.0;  // Repulsion
-  }
+  // // Make 0 attracted to 1, 1 to 2, 2 to 3, ..., (NUM_COLORS-1) to 0
+  // for (let i = 0; i < NUM_COLORS; i++) {
+  //   const attractIndex = (i * 20 + ((i + 1) % NUM_COLORS)) * 4;
+  //   const repelIndex = (((i + 1) % NUM_COLORS) * 20 + i) * 4;
+  //   forceTableData[attractIndex] = -2.0;  // Attraction
+  //   forceTableData[repelIndex] = 1.0;     // Repulsion
+  // }
+  // // make same colors repel
+  // for (let i = 0; i < NUM_COLORS; i++) {
+  //   const repelIndex = (i * 20 + i) * 4;
+  //   forceTableData[repelIndex] = 1.0;  // Repulsion
+  // }
 
 
 
@@ -104,6 +124,8 @@ export function initBuffers(device: GPUDevice, dimensions: { width: number; heig
 
   new Float32Array(forceTableBuffer.getMappedRange()).set(forceTableData);
   forceTableBuffer.unmap();
+
+
 
 
   return { particleBuffer, colorBuffer, uniformBuffer, colorTableBuffer, forceTableBuffer };

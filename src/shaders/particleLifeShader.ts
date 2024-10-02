@@ -88,14 +88,14 @@ fn calculateForce(distance: f32, colorId1: u32, colorId2: u32) -> f32 {
     let baseForce = colorForceTable[colorId1][colorId2].x;
     
     // Adjust force based on distance
-    let maxDistance = uniforms.pointSize * 20.0;
+    let maxDistance = uniforms.pointSize * 40.0;  // Increased by 2x
     var forceFalloff: f32;
-    if (distance < uniforms.pointSize * 10.0) {
-        // Linear interpolation from -1 at distance 0 to 0 at distance 10*pointSize
-        forceFalloff = -1.0 + distance / (uniforms.pointSize * 10.0);
+    if (distance < uniforms.pointSize * 20.0) {  // Increased by 2x
+        // Linear interpolation from -1 at distance 0 to 0 at distance 20*pointSize
+        forceFalloff = -1.0 + distance / (uniforms.pointSize * 20.0);  // Increased by 2x
     } else if (distance < maxDistance) {
-        // Quadratic falloff from 0 at distance 10*pointSize to 1 at distance 20*pointSize
-        let t = (distance - uniforms.pointSize * 10.0) / (uniforms.pointSize * 10.0);
+        // Quadratic falloff from 0 at distance 20*pointSize to 1 at distance 40*pointSize
+        let t = (distance - uniforms.pointSize * 20.0) / (uniforms.pointSize * 20.0);  // Increased by 2x
         forceFalloff = t * t;
     } else {
         forceFalloff = 0.0;
