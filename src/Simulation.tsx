@@ -311,14 +311,9 @@ function Simulation({ forceTable }: { forceTable: number[][] }) {
   }, []);
 
   return (
-    <>
-      {!navigator.gpu && (
-        <p style={{ position: 'absolute', zIndex: 1, color: 'red' }}>
-          WebGPU is not supported in this browser. Please try Chrome, Edge, or Opera.
-        </p>
-      )}
+
       <canvas ref={canvasRef} id="canvas" />
-    </>
+
   );
 }
 
